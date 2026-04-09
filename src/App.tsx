@@ -1,121 +1,53 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import { useEffect, useState } from "react";
 import './App.css'
+import type { WindowInfo } from "./electron/types/WindowInfo";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [info, setInfo] = useState<WindowInfo | null>(null)
+  const [polling, setPolling] = useState(false)
+
+  useEffect(() => {
+    const api = (window as any).electronAPI
+    if(!api) return
+    api.getActiveWindow?.().then((i: WindowInfo | null) => setInfo(i))
+    const unsubscribe = api.onActiveWindow?.((i: WindowInfo | null) => setInfo(i))
+    return unsubscribe
+  }, [])
+
+  useEffect(() => {
+    let t: number | undefined
+    const api = (window as any).electronAPI
+    if (polling && api?.getActiveWindow) {
+      t = window.setInterval(() => api.getActiveWindow().then((i: WindowInfo | null) => setInfo(i)), 1000)
+
+    }
+    return () => { if (t) clearInterval(t)}
+  }, [polling])
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div style={{padding: 20, fontFamily: 'system-ui, sans-serif'}}>
+      <h1>
+        Active Window
+      </h1>
+      {!(window as any).electronAPI && (
+        <div style={{color: 'orange'}}>Running in browser - Electron API not available</div>
+      )}
+      <div style={{marginTop: 12}}>
+        <div><strong>Title:</strong> {info?.title ?? '-'}</div>
+        <div><strong>App:</strong> {info?.app ?? '-'}</div>
+        <div><strong>Owner:</strong> {info?.owner ?? '-'}</div>
+        <div><strong>PID:</strong> {info?.pid ?? '-'}</div>
+      </div>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      <div style={{marginTop: 12}}>
+        <button onClick={() => (window as any).electronAPI.getActiveWindow?.().then(setInfo)}>Refresh</button>
+        <label style={{marginLeft: 12}}>
+          <input type="checkbox" checked={polling} onChange={e => setPolling(e.target.checked)}/>Poll every Second
+        </label>
+      </div>
+    </div>
   )
+
 }
 
 export default App

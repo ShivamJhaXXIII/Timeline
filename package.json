@@ -3,16 +3,19 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "main": "electron/main.ts",
+  "main": "dist-electron/electron/main.js",
   "scripts": {
     "dev": "vite",
-    "electron": "electron .",
+    "build:renderer": "vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "electron": "npm run build:electron && electron .",
     "start": "concurrently  \"npm run dev\"  \"npm run electron\"",
-    "build": "tsc -b && vite build",
+    "build": "npm run build:renderer && npm run build:electron",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "active-win": "^7.7.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
