@@ -6,6 +6,7 @@ import { WindowTracker } from './WindowTracker.js'
 let mainWindow: BrowserWindow | null = null
 const tracker = new WindowTracker()
 
+// Creates the single application window and loads either dev server or built files.
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 800,
@@ -28,9 +29,12 @@ function createWindow() {
 app.whenReady().then(() => {
     createWindow()
 
+    // Request/response IPC endpoint: renderer asks for current active window once.
     ipcMain.handle('window:getActive', async () => {
         return tracker.getActiveWindow()
     })
+
+    // Push-style IPC: send active-window updates every second to renderer subscribers.
     const poll = setInterval(async () => {
         if (!mainWindow || mainWindow.isDestroyed()) return
         const info = await tracker.getActiveWindow()
@@ -41,12 +45,14 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+    // Keep macOS-style behavior: apps stay open until user quits explicitly.
     if (process.platform !== 'darwin') {
         app.quit()
     }
 })
 
 app.on('activate', () => {
+    // Re-create window when dock icon is clicked and no windows are open.
     if (BrowserWindow.getAllWindows().length === 0) {
         createWindow()
     }
