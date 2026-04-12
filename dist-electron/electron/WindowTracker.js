@@ -1,7 +1,14 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { promisify } from "node:util";
 // Promisified wrapper so we can use async/await with child process execution.
 const execFileAsync = promisify(execFile);
+function resolvePowerShellPath() {
+    const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
+    const candidate = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+    return existsSync(candidate) ? candidate : "powershell.exe";
+}
 // Small PowerShell script that calls Win32 APIs to read the currently focused window.
 // It returns a single JSON object to stdout, which the Node process parses.
 const WINDOWS_ACTIVE_WINDOW_SCRIPT = String.raw `
@@ -54,7 +61,7 @@ if (-not $proc) {
 `;
 // Executes the Win32 PowerShell script and maps JSON output to the app's WindowInfo type.
 async function getActiveWindowFromPowerShell() {
-    const { stdout } = await execFileAsync("powershell.exe", [
+    const { stdout } = await execFileAsync(resolvePowerShellPath(), [
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",

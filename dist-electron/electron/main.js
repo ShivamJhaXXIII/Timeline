@@ -1,9 +1,11 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import { getPreloadPath } from './PathResolver.js';
+import { IdleTracker } from './IdleTracker.js';
 import { WindowTracker } from './WindowTracker.js';
 let mainWindow = null;
 const tracker = new WindowTracker();
+const idleTracker = new IdleTracker({ pollIntervalMs: 1000, idleThresholdSeconds: 60 });
 // Creates the single application window and loads either dev server or built files.
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -22,12 +24,20 @@ function createWindow() {
     else {
         mainWindow.loadURL('http://localhost:5173/');
     }
+    idleTracker.attachWindow(mainWindow);
+    idleTracker.start();
+    mainWindow.on('closed', () => {
+        idleTracker.attachWindow(null);
+    });
 }
 app.whenReady().then(() => {
     createWindow();
     // Request/response IPC endpoint: renderer asks for current active window once.
     ipcMain.handle('window:getActive', async () => {
         return tracker.getActiveWindow();
+    });
+    ipcMain.handle('idle:get', async () => {
+        return idleTracker.getIdleInfo();
     });
     // Push-style IPC: send active-window updates every second to renderer subscribers.
     const poll = setInterval(async () => {
@@ -36,7 +46,10 @@ app.whenReady().then(() => {
         const info = await tracker.getActiveWindow();
         mainWindow.webContents.send('window:update', info);
     }, 1000);
-    app.on('before-quit', () => clearInterval(poll));
+    app.on('before-quit', () => {
+        clearInterval(poll);
+        idleTracker.stop();
+    });
 });
 app.on('window-all-closed', () => {
     // Keep macOS-style behavior: apps stay open until user quits explicitly.

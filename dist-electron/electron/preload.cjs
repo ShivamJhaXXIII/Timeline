@@ -13,4 +13,12 @@ electron.contextBridge.exposeInMainWorld('electronAPI', {
         electron.ipcRenderer.on('window:update', listener);
         return () => electron.ipcRenderer.removeListener('window:update', listener);
     },
+    getIdleInfo: async () => {
+        return electron.ipcRenderer.invoke('idle:get');
+    },
+    onIdleUpdate: (cb) => {
+        const listener = (_, info) => cb(info);
+        electron.ipcRenderer.on('idle:update', listener);
+        return () => electron.ipcRenderer.removeListener('idle:update', listener);
+    },
 });
