@@ -6,7 +6,6 @@ import type { WindowInfo } from "./electron/types/WindowInfo";
 function App() {
   const [info, setInfo] = useState<WindowInfo | null>(null)
   const [idleInfo, setIdleInfo] = useState<IdleInfo | null>(null)
-  const [polling, setPolling] = useState(false)
 
   useEffect(() => {
     const api = (window as any).electronAPI
@@ -23,16 +22,6 @@ function App() {
     const unsubscribe = api.onActiveWindow?.((i: WindowInfo | null) => setInfo(i))
     return unsubscribe
   }, [])
-
-  useEffect(() => {
-    let t: number | undefined
-    const api = (window as any).electronAPI
-    if (polling && api?.getActiveWindow) {
-      t = window.setInterval(() => api.getActiveWindow().then((i: WindowInfo | null) => setInfo(i)), 1000)
-
-    }
-    return () => { if (t) clearInterval(t)}
-  }, [polling])
 
   return (
     <div style={{padding: 20, fontFamily: 'system-ui, sans-serif'}}>
@@ -59,9 +48,7 @@ function App() {
 
       <div style={{marginTop: 12}}>
         <button onClick={() => (window as any).electronAPI.getActiveWindow?.().then(setInfo)}>Refresh</button>
-        <label style={{marginLeft: 12}}>
-          <input type="checkbox" checked={polling} onChange={e => setPolling(e.target.checked)}/>Poll every Second
-        </label>
+        <span style={{marginLeft: 12, color: '#666'}}>Auto-updates every second via IPC</span>
       </div>
     </div>
   )

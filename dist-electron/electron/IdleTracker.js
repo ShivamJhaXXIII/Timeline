@@ -1,4 +1,5 @@
 import { powerMonitor } from 'electron';
+import { DEFAULT_IDLE_THRESHOLD_SECONDS, IDLE_POLL_INTERVAL_MS } from './config/constants.js';
 export class IdleTracker {
     trackedWindow = null;
     pollIntervalMs;
@@ -8,8 +9,8 @@ export class IdleTracker {
     onSuspended = () => this.publish('suspended');
     onResumed = () => this.publish('active');
     constructor(options = {}) {
-        this.pollIntervalMs = options.pollIntervalMs ?? 1000;
-        this.idleThresholdSeconds = options.idleThresholdSeconds ?? 60;
+        this.pollIntervalMs = options.pollIntervalMs ?? IDLE_POLL_INTERVAL_MS;
+        this.idleThresholdSeconds = options.idleThresholdSeconds ?? DEFAULT_IDLE_THRESHOLD_SECONDS;
     }
     attachWindow(window) {
         this.trackedWindow = window;

@@ -1,0 +1,5 @@
+export const MAIN_WINDOW_WIDTH = 800;
+export const MAIN_WINDOW_HEIGHT = 600;
+export const WINDOW_UPDATE_INTERVAL_MS = 1000;
+export const IDLE_POLL_INTERVAL_MS = 1000;
+export const DEFAULT_IDLE_THRESHOLD_SECONDS = 5 * 60;

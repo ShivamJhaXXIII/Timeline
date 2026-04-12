@@ -3,14 +3,18 @@ import path from 'node:path';
 import { getPreloadPath } from './PathResolver.js';
 import { IdleTracker } from './IdleTracker.js';
 import { WindowTracker } from './WindowTracker.js';
+import { DEFAULT_IDLE_THRESHOLD_SECONDS, IDLE_POLL_INTERVAL_MS, MAIN_WINDOW_HEIGHT, MAIN_WINDOW_WIDTH, WINDOW_UPDATE_INTERVAL_MS, } from './config/constants.js';
 let mainWindow = null;
 const tracker = new WindowTracker();
-const idleTracker = new IdleTracker({ pollIntervalMs: 1000, idleThresholdSeconds: 60 });
+const idleTracker = new IdleTracker({
+    pollIntervalMs: IDLE_POLL_INTERVAL_MS,
+    idleThresholdSeconds: DEFAULT_IDLE_THRESHOLD_SECONDS,
+});
 // Creates the single application window and loads either dev server or built files.
 function createWindow() {
     mainWindow = new BrowserWindow({
-        width: 800,
-        height: 600,
+        width: MAIN_WINDOW_WIDTH,
+        height: MAIN_WINDOW_HEIGHT,
         webPreferences: {
             preload: getPreloadPath(),
             contextIsolation: true,
@@ -45,7 +49,7 @@ app.whenReady().then(() => {
             return;
         const info = await tracker.getActiveWindow();
         mainWindow.webContents.send('window:update', info);
-    }, 1000);
+    }, WINDOW_UPDATE_INTERVAL_MS);
     app.on('before-quit', () => {
         clearInterval(poll);
         idleTracker.stop();
