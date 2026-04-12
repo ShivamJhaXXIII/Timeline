@@ -6,6 +6,7 @@ import type { WindowInfo } from "./electron/types/WindowInfo";
 function App() {
   const [info, setInfo] = useState<WindowInfo | null>(null)
   const [idleInfo, setIdleInfo] = useState<IdleInfo | null>(null)
+  const [screenshotState, setScreenshotState] = useState<any>(null)
 
   useEffect(() => {
     const api = (window as any).electronAPI
@@ -23,32 +24,55 @@ function App() {
     return unsubscribe
   }, [])
 
+  useEffect(() => {
+    const api = (window as any).electronAPI
+    if(!api) return
+    api.getScreenshotServiceStatus?.().then(setScreenshotState)
+  }, [])
+
   return (
-    <div style={{padding: 20, fontFamily: 'system-ui, sans-serif'}}>
-      <h1>
+    <div className="app-shell">
+      <h1 className="app-title">
         Active Window
       </h1>
       {!(window as any).electronAPI && (
-        <div style={{color: 'orange'}}>Running in browser - Electron API not available</div>
+        <div className="app-warning">Running in browser - Electron API not available</div>
       )}
-      <div style={{marginTop: 12}}>
+      <div className="section-block">
         <div><strong>Title:</strong> {info?.title ?? '-'}</div>
         <div><strong>App:</strong> {info?.app ?? '-'}</div>
         <div><strong>Owner:</strong> {info?.owner ?? '-'}</div>
         <div><strong>PID:</strong> {info?.pid ?? '-'}</div>
       </div>
 
-      <h2 style={{ marginTop: 18 }}>Idle Status</h2>
-      <div style={{marginTop: 12}}>
+      <h2 className="section-title">Idle Status</h2>
+      <div className="section-block">
         <div><strong>Status:</strong> {idleInfo?.status ?? '-'}</div>
         <div><strong>Idle Seconds:</strong> {idleInfo?.idleSeconds ?? '-'}</div>
         <div><strong>Threshold:</strong> {idleInfo?.thresholdSeconds ?? '-'}s</div>
         <div><strong>Is Idle:</strong> {idleInfo ? String(idleInfo.isIdle) : '-'}</div>
       </div>
 
-      <div style={{marginTop: 12}}>
+      <div className="action-row">
         <button onClick={() => (window as any).electronAPI.getActiveWindow?.().then(setInfo)}>Refresh</button>
-        <span style={{marginLeft: 12, color: '#666'}}>Auto-updates every second via IPC</span>
+        <span className="helper-text">Auto-updates every second via IPC</span>
+      </div>
+
+      <h2 className="section-title">Screenshot Service</h2>
+      <div className="section-block">
+        <div><strong>Running:</strong> {screenshotState ? String(screenshotState.running) : '-'}</div>
+        <div><strong>Output Dir:</strong> {screenshotState?.outputDir ?? '-'}</div>
+        <div><strong>Interval:</strong> {screenshotState?.intervalMs ? `${screenshotState.intervalMs}ms` : '-'}</div>
+        <div><strong>Next Capture:</strong> {screenshotState?.nextCaptureInMs ?? '-'}</div>
+        <div><strong>Last Capture:</strong> {screenshotState?.lastCaptureAt ?? '-'}</div>
+        <div><strong>Last File:</strong> {screenshotState?.lastCapturePath ?? '-'}</div>
+        <div><strong>Last Error:</strong> {screenshotState?.lastError ?? '-'}</div>
+      </div>
+
+      <div className="action-row">
+        <button onClick={() => (window as any).electronAPI.startScreenshotService?.().then(setScreenshotState)}>Start Capture</button>
+        <button onClick={() => (window as any).electronAPI.stopScreenshotService?.().then(setScreenshotState)}>Stop Capture</button>
+        <button onClick={() => (window as any).electronAPI.getScreenshotServiceStatus?.().then(setScreenshotState)}>Refresh Capture State</button>
       </div>
     </div>
   )

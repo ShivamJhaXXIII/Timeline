@@ -2,8 +2,9 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import { getPreloadPath } from './PathResolver.js';
 import { IdleTracker } from './IdleTracker.js';
+import { getScreenShotServiceState, startScreenShotService, stopScreenShotService, } from './screenshotService.js';
 import { WindowTracker } from './WindowTracker.js';
-import { DEFAULT_IDLE_THRESHOLD_SECONDS, IDLE_POLL_INTERVAL_MS, MAIN_WINDOW_HEIGHT, MAIN_WINDOW_WIDTH, WINDOW_UPDATE_INTERVAL_MS, } from './config/constants.js';
+import { DEFAULT_IDLE_THRESHOLD_SECONDS, IDLE_POLL_INTERVAL_MS, MAIN_WINDOW_HEIGHT, MAIN_WINDOW_WIDTH, SCREENSHOT_CAPTURE_INTERVAL_MS, WINDOW_UPDATE_INTERVAL_MS, } from './config/constants.js';
 let mainWindow = null;
 const tracker = new WindowTracker();
 const idleTracker = new IdleTracker({
@@ -36,12 +37,29 @@ function createWindow() {
 }
 app.whenReady().then(() => {
     createWindow();
+    const screenshotOutputDir = path.join(app.getPath('userData'), 'screenshots');
+    startScreenShotService({
+        outputDir: screenshotOutputDir,
+        intervalMs: SCREENSHOT_CAPTURE_INTERVAL_MS,
+    });
     // Request/response IPC endpoint: renderer asks for current active window once.
     ipcMain.handle('window:getActive', async () => {
         return tracker.getActiveWindow();
     });
     ipcMain.handle('idle:get', async () => {
         return idleTracker.getIdleInfo();
+    });
+    ipcMain.handle('screenshot:start', async () => {
+        return startScreenShotService({
+            outputDir: screenshotOutputDir,
+            intervalMs: SCREENSHOT_CAPTURE_INTERVAL_MS,
+        });
+    });
+    ipcMain.handle('screenshot:stop', async () => {
+        return stopScreenShotService();
+    });
+    ipcMain.handle('screenshot:status', async () => {
+        return getScreenShotServiceState();
     });
     // Push-style IPC: send active-window updates every second to renderer subscribers.
     const poll = setInterval(async () => {
@@ -52,6 +70,7 @@ app.whenReady().then(() => {
     }, WINDOW_UPDATE_INTERVAL_MS);
     app.on('before-quit', () => {
         clearInterval(poll);
+        stopScreenShotService();
         idleTracker.stop();
     });
 });

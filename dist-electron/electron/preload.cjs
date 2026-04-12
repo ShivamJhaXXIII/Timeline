@@ -21,4 +21,13 @@ electron.contextBridge.exposeInMainWorld('electronAPI', {
         electron.ipcRenderer.on('idle:update', listener);
         return () => electron.ipcRenderer.removeListener('idle:update', listener);
     },
+    getScreenshotServiceStatus: async () => {
+        return electron.ipcRenderer.invoke('screenshot:status');
+    },
+    startScreenshotService: async () => {
+        return electron.ipcRenderer.invoke('screenshot:start');
+    },
+    stopScreenshotService: async () => {
+        return electron.ipcRenderer.invoke('screenshot:stop');
+    },
 });
