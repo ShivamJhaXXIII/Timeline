@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 Plan
 dist
+dist-electron
 dist-ssr
 *.local
 

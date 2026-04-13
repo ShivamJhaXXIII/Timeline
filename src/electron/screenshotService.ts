@@ -1,6 +1,11 @@
 import path from 'node:path'
 import { captureScreen } from './captureScreen.js'
 
+export type ScreenshotCaptureResult = {
+    filePath: string
+    capturedAt: string
+}
+
 export type ScreenshotServiceState = {
     running: boolean
     outputDir: string | null
@@ -14,6 +19,7 @@ export type ScreenshotServiceState = {
 export type StartScreenshotServiceOptions = {
     outputDir?: string
     intervalMs?: number
+    onCapture?: (capture: ScreenshotCaptureResult) => Promise<void> | void
 }
 
 const DEFAULT_INTERVAL_MS = 60_000
@@ -28,6 +34,7 @@ let nextCaptureInMs: number | null = null
 let lastCaptureAt: string | null = null
 let lastCapturePath: string | null = null
 let lastError: string | null = null
+let pendingCaptureHandler: StartScreenshotServiceOptions['onCapture'] | null = null
 
 function normalizeIntervalMs(intervalMs?: number) {
     if (typeof intervalMs !== 'number' || !Number.isFinite(intervalMs)) {
@@ -77,8 +84,16 @@ async function runCaptureCycle() {
             outputDir: currentOutputDir,
             quality: 85,
         })
+        const capturedAt = new Date().toISOString()
 
-        lastCaptureAt = new Date().toISOString()
+        if (typeof pendingCaptureHandler === 'function') {
+            await pendingCaptureHandler({
+                filePath,
+                capturedAt,
+            })
+        }
+
+        lastCaptureAt = capturedAt
         lastCapturePath = filePath
         lastError = null
         currentDelayMs = currentIntervalMs
@@ -115,6 +130,7 @@ export function startScreenShotService(options: StartScreenshotServiceOptions = 
     currentOutputDir = normalizeOutputDir(options.outputDir)
     currentIntervalMs = normalizeIntervalMs(options.intervalMs)
     currentDelayMs = currentIntervalMs
+    pendingCaptureHandler = options.onCapture ?? null
     lastError = null
     running = true
 
@@ -126,6 +142,7 @@ export function startScreenShotService(options: StartScreenshotServiceOptions = 
 export function stopScreenShotService() {
     running = false
     clearTimer()
+    pendingCaptureHandler = null
 
     return getState()
 }

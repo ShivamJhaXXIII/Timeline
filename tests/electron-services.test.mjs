@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
+import { DatabaseSync } from 'node:sqlite'
 import { test } from 'node:test'
 
 const captureScreenUrl = new URL('../dist-electron/electron/captureScreen.js', import.meta.url)
 const idleTrackerUrl = new URL('../dist-electron/electron/IdleTracker.js', import.meta.url)
+const databaseUrl = new URL('../dist-electron/electron/database.js', import.meta.url)
 const screenshotServiceUrl = new URL('../dist-electron/electron/screenshotService.js', import.meta.url)
 const windowTrackerUrl = new URL('../dist-electron/electron/WindowTracker.js', import.meta.url)
 
@@ -108,6 +110,7 @@ test('WindowTracker normalizes missing window fields', async (t) => {
 
 test('screenshot service starts and stops cleanly', async (t) => {
   const captureScreen = t.mock.fn(async () => 'C:\\captures\\2026\\04\\12\\16\\screenshot.jpg')
+  const onCapture = t.mock.fn(async () => {})
 
   t.mock.module(captureScreenUrl, {
     namedExports: {
@@ -119,12 +122,13 @@ test('screenshot service starts and stops cleanly', async (t) => {
 
   const { startScreenShotService, stopScreenShotService, getScreenShotServiceState } = await import(screenshotServiceUrl.href)
 
-  const startedState = startScreenShotService({ outputDir: 'C:\\captures', intervalMs: 1000 })
+  const startedState = startScreenShotService({ outputDir: 'C:\\captures', intervalMs: 1000, onCapture })
   assert.equal(startedState.running, true)
   assert.equal(startedState.outputDir, 'C:\\captures')
 
   t.mock.timers.tick(1)
   await t.waitFor(() => captureScreen.mock.callCount() === 1)
+  await t.waitFor(() => onCapture.mock.callCount() === 1)
 
   const runningState = getScreenShotServiceState()
   assert.equal(runningState.running, true)
@@ -133,4 +137,40 @@ test('screenshot service starts and stops cleanly', async (t) => {
   const stoppedState = stopScreenShotService()
   assert.equal(stoppedState.running, false)
   assert.equal(stoppedState.nextCaptureInMs, null)
+})
+
+test('database schema stores capture paths and metadata', async () => {
+  const { configureDatabase, insertCaptureRecord } = await import(databaseUrl.href)
+  const db = configureDatabase(new DatabaseSync(':memory:'))
+
+  insertCaptureRecord(db, {
+    screenshotPath: 'C:\\captures\\sample.jpg',
+    capturedAt: '2026-04-12T16:53:06.287Z',
+    metadata: {
+      windowTitle: 'Docs',
+      appName: 'Code',
+      appPath: 'C:\\Program Files\\Code\\Code.exe',
+      isIdle: false,
+      idleSeconds: 12,
+      idleThresholdSeconds: 300,
+      idleStatus: 'active',
+    },
+  })
+
+  const row = db.prepare('select * from captures where screenshot_path = ?').get('C:\\captures\\sample.jpg')
+
+  assert.equal(row.screenshot_path, 'C:\\captures\\sample.jpg')
+  assert.equal(row.window_title, 'Docs')
+  assert.equal(row.app_name, 'Code')
+  assert.equal(row.app_path, 'C:\\Program Files\\Code\\Code.exe')
+  assert.equal(row.is_idle, 0)
+  assert.deepEqual(JSON.parse(row.metadata_json), {
+    windowTitle: 'Docs',
+    appName: 'Code',
+    appPath: 'C:\\Program Files\\Code\\Code.exe',
+    isIdle: false,
+    idleSeconds: 12,
+    idleThresholdSeconds: 300,
+    idleStatus: 'active',
+  })
 })

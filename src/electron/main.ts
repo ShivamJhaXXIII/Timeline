@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
+import { closeDatabase, initializeDatabase, insertCaptureRecord } from './database.js'
 import { getPreloadPath } from './PathResolver.js'
 import { IdleTracker } from './IdleTracker.js'
 import {
@@ -54,10 +55,33 @@ function createWindow() {
 app.whenReady().then(() => {
     createWindow()
 
+    const db = initializeDatabase(app.getPath('userData'))
     const screenshotOutputDir = path.join(app.getPath('userData'), 'screenshots')
     startScreenShotService({
         outputDir: screenshotOutputDir,
         intervalMs: SCREENSHOT_CAPTURE_INTERVAL_MS,
+        onCapture: async ({ filePath, capturedAt }) => {
+            try {
+                const windowInfo = await tracker.getActiveWindow()
+                const idleInfo = idleTracker.getIdleInfo()
+
+                insertCaptureRecord(db, {
+                    screenshotPath: filePath,
+                    capturedAt,
+                    metadata: {
+                        windowTitle: windowInfo?.title ?? '',
+                        appName: windowInfo?.app ?? '',
+                        appPath: windowInfo?.owner ?? null,
+                        isIdle: idleInfo.isIdle,
+                        idleSeconds: idleInfo.idleSeconds,
+                        idleThresholdSeconds: idleInfo.thresholdSeconds,
+                        idleStatus: idleInfo.status,
+                    },
+                })
+            } catch (error) {
+                console.error('Failed to persist screenshot metadata:', error)
+            }
+        },
     })
 
     // Request/response IPC endpoint: renderer asks for current active window once.
@@ -95,6 +119,7 @@ app.whenReady().then(() => {
         clearInterval(poll)
         stopScreenShotService()
         idleTracker.stop()
+        closeDatabase()
     })
 })
 
@@ -111,3 +136,5 @@ app.on('activate', () => {
         createWindow()
     }
 })
+
+

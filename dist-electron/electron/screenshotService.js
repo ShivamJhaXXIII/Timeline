@@ -11,6 +11,7 @@ let nextCaptureInMs = null;
 let lastCaptureAt = null;
 let lastCapturePath = null;
 let lastError = null;
+let pendingCaptureHandler = null;
 function normalizeIntervalMs(intervalMs) {
     if (typeof intervalMs !== 'number' || !Number.isFinite(intervalMs)) {
         return DEFAULT_INTERVAL_MS;
@@ -51,7 +52,14 @@ async function runCaptureCycle() {
             outputDir: currentOutputDir,
             quality: 85,
         });
-        lastCaptureAt = new Date().toISOString();
+        const capturedAt = new Date().toISOString();
+        if (typeof pendingCaptureHandler === 'function') {
+            await pendingCaptureHandler({
+                filePath,
+                capturedAt,
+            });
+        }
+        lastCaptureAt = capturedAt;
         lastCapturePath = filePath;
         lastError = null;
         currentDelayMs = currentIntervalMs;
@@ -87,6 +95,7 @@ export function startScreenShotService(options = {}) {
     currentOutputDir = normalizeOutputDir(options.outputDir);
     currentIntervalMs = normalizeIntervalMs(options.intervalMs);
     currentDelayMs = currentIntervalMs;
+    pendingCaptureHandler = options.onCapture ?? null;
     lastError = null;
     running = true;
     scheduleNextCapture(0);
@@ -95,6 +104,7 @@ export function startScreenShotService(options = {}) {
 export function stopScreenShotService() {
     running = false;
     clearTimer();
+    pendingCaptureHandler = null;
     return getState();
 }
 export function getScreenShotServiceState() {
