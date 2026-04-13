@@ -173,4 +173,11 @@ test('database schema stores capture paths and metadata', async () => {
     idleThresholdSeconds: 300,
     idleStatus: 'active',
   })
+
+  const versionRow = db.prepare('PRAGMA user_version').get()
+  assert.equal(versionRow.user_version, 1)
+
+  const migrationRow = db.prepare('select version, name from schema_migrations where version = 1').get()
+  assert.equal(migrationRow.version, 1)
+  assert.equal(migrationRow.name, '001_initial.sql')
 })

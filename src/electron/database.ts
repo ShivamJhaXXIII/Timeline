@@ -1,5 +1,7 @@
+import fs from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { fileURLToPath } from 'node:url'
 
 export type CaptureMetadata = {
     windowTitle: string
@@ -17,29 +19,73 @@ export type CaptureInsert = {
     metadata: CaptureMetadata
 }
 
-const SCHEMA = `
-PRAGMA foreign_keys = ON;
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url))
+const MIGRATIONS_DIR = path.join(MODULE_DIR, 'sql', 'migrations')
+const LATEST_SCHEMA_VERSION = 1
 
-CREATE TABLE IF NOT EXISTS captures (
-    id TEXT PRIMARY KEY,
-    captured_at TEXT NOT NULL,
-    screenshot_path TEXT NOT NULL UNIQUE,
-    window_title TEXT NOT NULL DEFAULT '',
-    app_name TEXT NOT NULL DEFAULT '',
-    app_path TEXT,
-    is_idle INTEGER NOT NULL DEFAULT 0,
-    metadata_json TEXT NOT NULL DEFAULT '{}',
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_captures_captured_at ON captures (captured_at DESC);
-CREATE INDEX IF NOT EXISTS idx_captures_app_name ON captures (app_name);
-`
+const MIGRATION_FILES: Record<number, string> = {
+    1: '001_initial.sql',
+}
 
 let database: DatabaseSync | null = null
 
+function readMigrationSql(version: number) {
+    const fileName = MIGRATION_FILES[version]
+    if (!fileName) {
+        throw new Error(`No migration file registered for schema version ${version}`)
+    }
+
+    const migrationPath = path.join(MIGRATIONS_DIR, fileName)
+    return fs.readFileSync(migrationPath, 'utf8')
+}
+
+function getUserVersion(db: DatabaseSync) {
+    const row = db.prepare('PRAGMA user_version').get() as { user_version?: number }
+    return row.user_version ?? 0
+}
+
+function ensureMigrationHistoryTable(db: DatabaseSync) {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    `)
+}
+
+function applyMigrations(db: DatabaseSync) {
+    db.exec('PRAGMA foreign_keys = ON')
+    ensureMigrationHistoryTable(db)
+
+    const currentVersion = getUserVersion(db)
+    if (currentVersion >= LATEST_SCHEMA_VERSION) {
+        return
+    }
+
+    db.exec('BEGIN IMMEDIATE')
+    try {
+        for (let version = currentVersion + 1; version <= LATEST_SCHEMA_VERSION; version += 1) {
+            const fileName = MIGRATION_FILES[version]
+            db.exec(readMigrationSql(version))
+            db.prepare(
+                `
+                INSERT OR IGNORE INTO schema_migrations (version, name)
+                VALUES (@version, @name)
+                `
+            ).run({ version, name: fileName })
+            db.exec(`PRAGMA user_version = ${version}`)
+        }
+
+        db.exec('COMMIT')
+    } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
+    }
+}
+
 export function configureDatabase(db: DatabaseSync) {
-    db.exec(SCHEMA)
+    applyMigrations(db)
     return db
 }
 
