@@ -96,7 +96,11 @@ function normalizeOffset(offset: number | undefined) {
 }
 
 export class CaptureRepository {
-    constructor(private readonly db: DatabaseSync) {}
+    private readonly db: DatabaseSync
+
+    constructor(db: DatabaseSync) {
+        this.db = db
+    }
 
     create(capture: CaptureInsert): CaptureRecord {
         const id = randomUUID()
