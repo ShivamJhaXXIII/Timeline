@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
 import { createCaptureRepository } from './captureRepository.js'
+import type { CaptureListQuery } from './captureRepository.js'
 import { closeDatabase, initializeDatabase } from './database.js'
 import { getPreloadPath } from './PathResolver.js'
 import { IdleTracker } from './IdleTracker.js'
@@ -20,6 +21,38 @@ import {
 } from './config/constants.js'
 
 let mainWindow: BrowserWindow | null = null
+
+function normalizeCaptureListQuery(query: unknown): CaptureListQuery {
+    if (!query || typeof query !== 'object') {
+        return {}
+    }
+
+    const input = query as Record<string, unknown>
+    const normalized: CaptureListQuery = {}
+
+    if (typeof input.from === 'string' && input.from.trim()) {
+        normalized.from = input.from
+    }
+
+    if (typeof input.to === 'string' && input.to.trim()) {
+        normalized.to = input.to
+    }
+
+    if (typeof input.appName === 'string' && input.appName.trim()) {
+        normalized.appName = input.appName
+    }
+
+    if (typeof input.limit === 'number' && Number.isFinite(input.limit)) {
+        normalized.limit = input.limit
+    }
+
+    if (typeof input.offset === 'number' && Number.isFinite(input.offset)) {
+        normalized.offset = input.offset
+    }
+
+    return normalized
+}
+
 const tracker = new WindowTracker()
 const idleTracker = new IdleTracker({
     pollIntervalMs: IDLE_POLL_INTERVAL_MS,
@@ -108,6 +141,10 @@ app.whenReady().then(() => {
 
     ipcMain.handle('screenshot:status', async () => {
         return getScreenShotServiceState()
+    })
+
+    ipcMain.handle('captures:list', async (_event, query: unknown) => {
+        return captureRepository.findByDateRange(normalizeCaptureListQuery(query))
     })
 
     // Push-style IPC: send active-window updates every second to renderer subscribers.

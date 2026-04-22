@@ -2,14 +2,15 @@ import { useEffect, useState } from "react";
 import './App.css'
 import type { IdleInfo } from "./electron/types/IdleInfo";
 import type { WindowInfo } from "./electron/types/WindowInfo";
+import type { ScreenshotServiceState } from "./types/electronApi";
 
 function App() {
   const [info, setInfo] = useState<WindowInfo | null>(null)
   const [idleInfo, setIdleInfo] = useState<IdleInfo | null>(null)
-  const [screenshotState, setScreenshotState] = useState<any>(null)
+  const [screenshotState, setScreenshotState] = useState<ScreenshotServiceState | null>(null)
 
   useEffect(() => {
-    const api = (window as any).electronAPI
+    const api = window.electronAPI
     if(!api) return
     api.getIdleInfo?.().then((i: IdleInfo) => setIdleInfo(i))
     const unsubscribeIdle = api.onIdleUpdate?.((i: IdleInfo) => setIdleInfo(i))
@@ -17,7 +18,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const api = (window as any).electronAPI
+    const api = window.electronAPI
     if(!api) return
     api.getActiveWindow?.().then((i: WindowInfo | null) => setInfo(i))
     const unsubscribe = api.onActiveWindow?.((i: WindowInfo | null) => setInfo(i))
@@ -25,7 +26,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const api = (window as any).electronAPI
+    const api = window.electronAPI
     if(!api) return
     api.getScreenshotServiceStatus?.().then(setScreenshotState)
   }, [])
@@ -35,7 +36,7 @@ function App() {
       <h1 className="app-title">
         Active Window
       </h1>
-      {!(window as any).electronAPI && (
+      {!window.electronAPI && (
         <div className="app-warning">Running in browser - Electron API not available</div>
       )}
       <div className="section-block">
@@ -54,7 +55,7 @@ function App() {
       </div>
 
       <div className="action-row">
-        <button onClick={() => (window as any).electronAPI.getActiveWindow?.().then(setInfo)}>Refresh</button>
+        <button onClick={() => window.electronAPI?.getActiveWindow().then(setInfo)}>Refresh</button>
         <span className="helper-text">Auto-updates every second via IPC</span>
       </div>
 
@@ -70,9 +71,9 @@ function App() {
       </div>
 
       <div className="action-row">
-        <button onClick={() => (window as any).electronAPI.startScreenshotService?.().then(setScreenshotState)}>Start Capture</button>
-        <button onClick={() => (window as any).electronAPI.stopScreenshotService?.().then(setScreenshotState)}>Stop Capture</button>
-        <button onClick={() => (window as any).electronAPI.getScreenshotServiceStatus?.().then(setScreenshotState)}>Refresh Capture State</button>
+        <button onClick={() => window.electronAPI?.startScreenshotService().then(setScreenshotState)}>Start Capture</button>
+        <button onClick={() => window.electronAPI?.stopScreenshotService().then(setScreenshotState)}>Stop Capture</button>
+        <button onClick={() => window.electronAPI?.getScreenshotServiceStatus().then(setScreenshotState)}>Refresh Capture State</button>
       </div>
     </div>
   )
