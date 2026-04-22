@@ -5,6 +5,7 @@ import { test } from 'node:test'
 const captureScreenUrl = new URL('../dist-electron/electron/captureScreen.js', import.meta.url)
 const idleTrackerUrl = new URL('../dist-electron/electron/IdleTracker.js', import.meta.url)
 const databaseUrl = new URL('../dist-electron/electron/database.js', import.meta.url)
+const captureRepositoryUrl = new URL('../dist-electron/electron/captureRepository.js', import.meta.url)
 const screenshotServiceUrl = new URL('../dist-electron/electron/screenshotService.js', import.meta.url)
 const windowTrackerUrl = new URL('../dist-electron/electron/WindowTracker.js', import.meta.url)
 
@@ -180,4 +181,88 @@ test('database schema stores capture paths and metadata', async () => {
   const migrationRow = db.prepare('select version, name from schema_migrations where version = 1').get()
   assert.equal(migrationRow.version, 1)
   assert.equal(migrationRow.name, '001_initial.sql')
+})
+
+test('CaptureRepository supports CRUD with metadata storage', async () => {
+  const { configureDatabase } = await import(databaseUrl.href)
+  const { CaptureRepository } = await import(captureRepositoryUrl.href)
+  const db = configureDatabase(new DatabaseSync(':memory:'))
+  const repository = new CaptureRepository(db)
+
+  const created = repository.create({
+    screenshotPath: 'C:\\captures\\repo-1.jpg',
+    capturedAt: '2026-04-19T10:00:00.000Z',
+    metadata: {
+      windowTitle: 'Timeline Plan',
+      appName: 'Code',
+      appPath: 'C:\\Program Files\\Code\\Code.exe',
+      isIdle: false,
+      idleSeconds: 2,
+      idleThresholdSeconds: 300,
+      idleStatus: 'active',
+    },
+  })
+
+  assert.match(created.id, /^[0-9a-f-]{36}$/)
+  assert.equal(created.windowTitle, 'Timeline Plan')
+  assert.equal(created.metadata.appName, 'Code')
+
+  const readBack = repository.findById(created.id)
+  assert.ok(readBack)
+  assert.equal(readBack.screenshotPath, 'C:\\captures\\repo-1.jpg')
+  assert.deepEqual(readBack.metadata, {
+    windowTitle: 'Timeline Plan',
+    appName: 'Code',
+    appPath: 'C:\\Program Files\\Code\\Code.exe',
+    isIdle: false,
+    idleSeconds: 2,
+    idleThresholdSeconds: 300,
+    idleStatus: 'active',
+  })
+
+  const updated = repository.updateById(created.id, {
+    screenshotPath: 'C:\\captures\\repo-1-updated.jpg',
+    metadata: {
+      windowTitle: 'Terminal',
+      appName: 'Windows Terminal',
+      appPath: 'C:\\Program Files\\WindowsApps\\wt.exe',
+      isIdle: true,
+      idleSeconds: 400,
+      idleThresholdSeconds: 300,
+      idleStatus: 'idle',
+    },
+  })
+
+  assert.ok(updated)
+  assert.equal(updated.screenshotPath, 'C:\\captures\\repo-1-updated.jpg')
+  assert.equal(updated.metadata.windowTitle, 'Terminal')
+  assert.equal(updated.metadata.isIdle, true)
+
+  repository.create({
+    screenshotPath: 'C:\\captures\\repo-2.jpg',
+    capturedAt: '2026-04-19T11:00:00.000Z',
+    metadata: {
+      windowTitle: 'Docs',
+      appName: 'Browser',
+      appPath: null,
+      isIdle: false,
+      idleSeconds: 0,
+      idleThresholdSeconds: 300,
+      idleStatus: 'active',
+    },
+  })
+
+  const inRange = repository.findByDateRange({
+    from: '2026-04-19T09:59:59.000Z',
+    to: '2026-04-19T10:59:59.999Z',
+  })
+  assert.equal(inRange.length, 1)
+  assert.equal(inRange[0].screenshotPath, 'C:\\captures\\repo-1-updated.jpg')
+
+  const deletedByRange = repository.deleteByDateRange('2026-04-19T10:59:59.999Z', '2026-04-19T12:00:00.000Z')
+  assert.equal(deletedByRange, 1)
+
+  const deletedById = repository.deleteById(created.id)
+  assert.equal(deletedById, true)
+  assert.equal(repository.findById(created.id), null)
 })

@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
-import { closeDatabase, initializeDatabase, insertCaptureRecord } from './database.js'
+import { createCaptureRepository } from './captureRepository.js'
+import { closeDatabase, initializeDatabase } from './database.js'
 import { getPreloadPath } from './PathResolver.js'
 import { IdleTracker } from './IdleTracker.js'
 import {
@@ -56,6 +57,7 @@ app.whenReady().then(() => {
     createWindow()
 
     const db = initializeDatabase(app.getPath('userData'))
+    const captureRepository = createCaptureRepository(db)
     const screenshotOutputDir = path.join(app.getPath('userData'), 'screenshots')
     startScreenShotService({
         outputDir: screenshotOutputDir,
@@ -65,7 +67,7 @@ app.whenReady().then(() => {
                 const windowInfo = await tracker.getActiveWindow()
                 const idleInfo = idleTracker.getIdleInfo()
 
-                insertCaptureRecord(db, {
+                captureRepository.create({
                     screenshotPath: filePath,
                     capturedAt,
                     metadata: {
